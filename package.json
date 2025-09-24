@@ -1,0 +1,54 @@
+{
+  "name": "docker-nexus",
+  "version": "1.0.0",
+  "description": "Complete Docker-like container engine in a single JavaScript file with NEXUS AXION essences",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js --web-server",
+    "dev": "nodemon app.js --web-server",
+    "demo": "node app.js --demo",
+    "interactive": "node app.js --interactive",
+    "build": "node app.js build myapp:latest ./Dockerfile",
+    "run": "node app.js run -it myapp:latest /bin/bash",
+    "ps": "node app.js ps",
+    "images": "node app.js images",
+    "system": "node app.js system info",
+    "daemon": "node app.js --daemon",
+    "cleanup": "node app.js --cleanup",
+    "web-server": "node app.js --web-server"
+  },
+  "keywords": [
+    "docker",
+    "containers",
+    "nexus-axion",
+    "virtualization",
+    "isolation",
+    "orchestration",
+    "single-file"
+  ],
+  "author": "Anzize Daouda",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "inquirer": "^9.2.12"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "bin": {
+    "docker-nexus": "./app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tryboy869/docker-nexus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Tryboy869/docker-nexus/issues"
+  },
+  "homepage": "https://github.com/Tryboy869/docker-nexus#readme"
+}
