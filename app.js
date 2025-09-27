@@ -2260,7 +2260,10 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
   }
   
   async handleWebServer() {
-    console.log(chalk.blue('\n🌐 Starting Docker Nexus Web Server for Render...'));
+    console.log(chalk.blue('\n🌐 Starting Docker Nexus Web Server...'));
+    console.log(chalk.gray(`📍 Environment: ${process.env.NODE_ENV || 'development'}`));
+    console.log(chalk.gray(`🚪 Port: ${process.env.PORT || 3000}`));
+    console.log(chalk.gray(`🏠 Host: ${process.env.DOCKER_NEXUS_HOST || '0.0.0.0'}`));
     
     // Initialize global engine for web server
     global.dockerEngine = this.engine;
@@ -2269,23 +2272,40 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
       const result = await this.engine.startWebServer();
       
       if (result.success) {
-        const { url } = result.result;
+        const { url, host, port } = result.result;
         console.log(chalk.green(`✅ Web server started successfully!`));
-        console.log(chalk.cyan(`🔗 Access your Docker Nexus at: ${url}`));
-        console.log(chalk.gray(`🖥️  Dashboard: ${url}`));
-        console.log(chalk.gray(`🔌 API: ${url}/api/system`));
+        console.log(chalk.cyan(`🔗 Server running on: http://${host}:${port}`));
+        console.log(chalk.gray(`🖥️  Dashboard: http://${host}:${port}`));
+        console.log(chalk.gray(`🔌 API: http://${host}:${port}/api/system`));
+        console.log(chalk.gray(`💚 Health: http://${host}:${port}/health`));
         
-        // Keep the process alive
-        process.on('SIGTERM', async () => {
-          console.log(chalk.yellow('\n🛑 Graceful shutdown...'));
-          await this.engine.stopWebServer();
-          process.exit(0);
-        });
-        
-        // Keep alive
+        // Log server status every 30 seconds
         setInterval(() => {
-          // Health check
+          console.log(chalk.gray(`🟢 Server alive - ${new Date().toISOString()}`));
         }, 30000);
+        
+        // Keep the process alive and handle graceful shutdown
+        const gracefulShutdown = async (signal) => {
+          console.log(chalk.yellow(`\n🛑 Received ${signal} - Graceful shutdown...`));
+          try {
+            await this.engine.stopWebServer();
+            console.log(chalk.green('✅ Server stopped gracefully'));
+            process.exit(0);
+          } catch (error) {
+            console.error(chalk.red(`❌ Error during shutdown: ${error.message}`));
+            process.exit(1);
+          }
+        };
+        
+        process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+        process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+        
+        // Keep process alive
+        const keepAlive = () => {
+          // Just keep the event loop busy
+          setTimeout(keepAlive, 1000);
+        };
+        keepAlive();
         
       } else {
         console.error(chalk.red(`❌ Failed to start web server: ${result.error}`));
@@ -2294,6 +2314,7 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
       
     } catch (error) {
       console.error(chalk.red(`💥 Web server error: ${error.message}`));
+      console.error(chalk.gray(error.stack));
       process.exit(1);
     }
   }
@@ -2389,6 +2410,13 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
     // Handle different execution modes
     const args = process.argv.slice(2);
     
+    // Force web server mode in production/Render environment
+    if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+      console.log(chalk.cyan('🌐 Production environment detected - Starting Web Server'));
+      await this.handleWebServer();
+      return;
+    }
+    
     if (args.length === 0 || args[0] === '--help') {
       // Show main help
       console.log(chalk.blue('\n🐳 Docker Nexus - Container Engine with NEXUS AXION Essences'));
@@ -2438,6 +2466,14 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
 
 async function main() {
   try {
+    // Detect Render environment and force web server mode
+    if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+      console.log(chalk.blue('🌐 Detected Render environment - Starting Web Server'));
+      const cli = new DockerNexusCLI();
+      await cli.handleWebServer();
+      return;
+    }
+    
     console.log(chalk.blue('🐳 Starting Docker Nexus...'));
     
     const cli = new DockerNexusCLI();
