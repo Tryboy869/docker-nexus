@@ -16,7 +16,8 @@
     "system": "node app.js system info",
     "daemon": "node app.js --daemon",
     "cleanup": "node app.js --cleanup",
-    "web-server": "node app.js --web-server"
+    "web-server": "node app.js --web-server",
+    "render": "node app.js --web-server"
   },
   "keywords": [
     "docker",
@@ -45,10 +46,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Tryboy869/docker-nexus.git"
+    "url": "https://github.com/anzize/docker-nexus.git"
   },
   "bugs": {
-    "url": "https://github.com/Tryboy869/docker-nexus/issues"
+    "url": "https://github.com/anzize/docker-nexus/issues"
   },
-  "homepage": "https://github.com/Tryboy869/docker-nexus#readme"
+  "homepage": "https://github.com/anzize/docker-nexus#readme"
 }
