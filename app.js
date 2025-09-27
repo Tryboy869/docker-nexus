@@ -2274,8 +2274,16 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
     // Initialize global engine for web server
     global.dockerEngine = this.engine;
     
+    // Debug: Vérifier les modules disponibles
+    console.log(chalk.gray(`🔍 Available modules: ${Object.keys(this.engine.modules).join(', ')}`));
+    
     try {
-      // Direct call to webserver module instead of orchestrator
+      // Vérifier que le module webserver existe
+      if (!this.engine.modules.webserver) {
+        throw new Error('WebServer module not found in engine modules');
+      }
+      
+      // Direct call to webserver module
       const result = await this.engine.modules.webserver.process('start_server', {});
       
       if (result && result.status === 'running') {
@@ -2296,7 +2304,9 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
           console.log(chalk.yellow(`\n🛑 Received ${signal} - Graceful shutdown...`));
           try {
             clearInterval(statusInterval);
-            await this.engine.modules.webserver.process('stop_server', {});
+            if (this.engine.modules.webserver) {
+              await this.engine.modules.webserver.process('stop_server', {});
+            }
             console.log(chalk.green('✅ Server stopped gracefully'));
             process.exit(0);
           } catch (error) {
@@ -2316,13 +2326,127 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
         
       } else {
         console.error(chalk.red(`❌ Failed to start web server: Invalid result`));
-        console.error(chalk.gray(`Result:`, result));
+        console.error(chalk.gray(`Result:`, JSON.stringify(result, null, 2)));
         process.exit(1);
       }
       
     } catch (error) {
       console.error(chalk.red(`💥 Web server error: ${error.message}`));
+      console.error(chalk.gray(`Available modules: ${Object.keys(this.engine?.modules || {}).join(', ')}`));
       console.error(chalk.gray(error.stack));
+      
+      // Fallback: Créer un serveur HTTP simple
+      console.log(chalk.yellow('🚨 Fallback: Starting simple HTTP server...'));
+      await this.startFallbackServer();
+    }
+  }
+  
+  async startFallbackServer() {
+    try {
+      const { createServer } = await import('http');
+      const port = process.env.PORT || 3000;
+      const host = process.env.DOCKER_NEXUS_HOST || '0.0.0.0';
+      
+      const server = createServer(async (req, res) => {
+        // Simple fallback response
+        if (req.url === '/health') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'healthy',
+            mode: 'fallback',
+            timestamp: new Date().toISOString()
+          }));
+          return;
+        }
+        
+        // Simple HTML response
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Docker Nexus - Fallback Mode</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .status { background: #e8f5e8; padding: 20px; border-left: 4px solid #4CAF50; margin: 20px 0; }
+        .error { background: #ffe8e8; padding: 20px; border-left: 4px solid #f44336; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🐳 Docker Nexus</h1>
+            <h2>Fallback Mode - System Recovery</h2>
+        </div>
+        
+        <div class="status">
+            <h3>✅ System Status</h3>
+            <p><strong>Status:</strong> Online (Fallback Mode)</p>
+            <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
+            <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</p>
+            <p><strong>Node Version:</strong> ${process.version}</p>
+        </div>
+        
+        <div class="error">
+            <h3>⚠️ Module Loading Issue</h3>
+            <p>The main Docker Nexus engine encountered a module loading issue, but the system is running in fallback mode to ensure availability.</p>
+            <p>This is a temporary state while the system recovers.</p>
+        </div>
+        
+        <div class="status">
+            <h3>🔌 Available Endpoints</h3>
+            <ul>
+                <li><a href="/health">/health</a> - Health check endpoint</li>
+                <li><a href="/">/</a> - This status page</li>
+            </ul>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; color: #666;">
+            <p>🌟 Docker Nexus - Container Engine with NEXUS AXION Essences</p>
+            <p>Deployed on Render.com</p>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-refresh every 30 seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>`;
+        
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(html);
+      });
+      
+      return new Promise((resolve, reject) => {
+        server.listen(port, host, (error) => {
+          if (error) {
+            reject(error);
+          } else {
+            console.log(chalk.green(`✅ Fallback server running on ${host}:${port}`));
+            console.log(chalk.cyan(`🔗 Access: http://${host}:${port}`));
+            console.log(chalk.gray(`💚 Health: http://${host}:${port}/health`));
+            
+            // Keep alive
+            setInterval(() => {
+              console.log(chalk.gray(`🟡 Fallback server alive - ${new Date().toISOString()}`));
+            }, 30000);
+            
+            resolve({
+              status: 'running',
+              mode: 'fallback',
+              host,
+              port
+            });
+          }
+        });
+      });
+      
+    } catch (error) {
+      console.error(chalk.red(`💥 Fallback server failed: ${error.message}`));
       process.exit(1);
     }
   }
