@@ -1481,7 +1481,7 @@ class WebServerModule extends DockerModule {
   }
   
   getCapabilities() {
-    return ['start_server', 'stop_server', 'health_check'];
+    return ['start_server', 'stop_server', 'health_check_web'];
   }
 }
 
@@ -1594,13 +1594,19 @@ class DockerNexusEngine extends EventEmitter {
       list_volumes: 'storage',
       remove_volume: 'storage',
       
-      // Workflow operations
-      execute_workflow: 'runtime',
+      // Storage operations
+      create_volume: 'storage',
+      list_volumes: 'storage',
+      remove_volume: 'storage',
+      
+      // Isolation operations
+      isolate_container: 'isolation',
+      setup_filesystem: 'isolation',
       
       // Web server operations
       start_server: 'webserver',
       stop_server: 'webserver',
-      health_check: 'webserver'
+      health_check_web: 'webserver'
     };
     
     const moduleName = operationMap[operation];
@@ -1657,11 +1663,11 @@ class DockerNexusEngine extends EventEmitter {
   
   // Web Server methods
   async startWebServer() {
-    return this.execute('start_server', {});
+    return this.modules.webserver.process('start_server', {});
   }
   
   async stopWebServer() {
-    return this.execute('stop_server', {});
+    return this.modules.webserver.process('stop_server', {});
   }
   
   // Système d'information
@@ -2269,10 +2275,11 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
     global.dockerEngine = this.engine;
     
     try {
-      const result = await this.engine.startWebServer();
+      // Direct call to webserver module instead of orchestrator
+      const result = await this.engine.modules.webserver.process('start_server', {});
       
-      if (result.success) {
-        const { url, host, port } = result.result;
+      if (result && result.status === 'running') {
+        const { host, port } = result;
         console.log(chalk.green(`✅ Web server started successfully!`));
         console.log(chalk.cyan(`🔗 Server running on: http://${host}:${port}`));
         console.log(chalk.gray(`🖥️  Dashboard: http://${host}:${port}`));
@@ -2280,7 +2287,7 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
         console.log(chalk.gray(`💚 Health: http://${host}:${port}/health`));
         
         // Log server status every 30 seconds
-        setInterval(() => {
+        const statusInterval = setInterval(() => {
           console.log(chalk.gray(`🟢 Server alive - ${new Date().toISOString()}`));
         }, 30000);
         
@@ -2288,7 +2295,8 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
         const gracefulShutdown = async (signal) => {
           console.log(chalk.yellow(`\n🛑 Received ${signal} - Graceful shutdown...`));
           try {
-            await this.engine.stopWebServer();
+            clearInterval(statusInterval);
+            await this.engine.modules.webserver.process('stop_server', {});
             console.log(chalk.green('✅ Server stopped gracefully'));
             process.exit(0);
           } catch (error) {
@@ -2300,15 +2308,15 @@ CMD ["echo", "Hello from Docker Nexus!"]`;
         process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
         process.on('SIGINT', () => gracefulShutdown('SIGINT'));
         
-        // Keep process alive
+        // Keep process alive with a simple interval
         const keepAlive = () => {
-          // Just keep the event loop busy
           setTimeout(keepAlive, 1000);
         };
         keepAlive();
         
       } else {
-        console.error(chalk.red(`❌ Failed to start web server: ${result.error}`));
+        console.error(chalk.red(`❌ Failed to start web server: Invalid result`));
+        console.error(chalk.gray(`Result:`, result));
         process.exit(1);
       }
       
